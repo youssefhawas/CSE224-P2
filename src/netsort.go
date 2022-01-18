@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 	"time"
 
@@ -34,15 +38,23 @@ func readServerConfigs(configPath string) ServerConfigs {
 }
 
 func handleConnection(conn net.Conn, ch chan<- []byte) {
-	buffer := make([]byte, 100)
-	bytes, err := conn.Read(buffer)
-	if err != nil {
-		log.Panicln(err)
+	for {
+		buffer := make([]byte, 100)
+		bytes, err := conn.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				fmt.Println("EOF")
+				conn.Close()
+				break
+			} else {
+				log.Panicln(err)
+			}
+		}
+		fmt.Print("Received from ")
+		fmt.Print(conn)
+		fmt.Println(strconv.Itoa(bytes) + " bytes")
+		ch <- buffer[0:bytes]
 	}
-	fmt.Print("Received from")
-	fmt.Print(conn)
-	fmt.Println(buffer[0:bytes])
-	ch <- buffer[0:bytes]
 }
 
 func listenforData(ch chan<- []byte, serverid int) {
@@ -66,27 +78,58 @@ func listenforData(ch chan<- []byte, serverid int) {
 	}
 }
 
-func sendData(conn net.Conn) {
-	valbytes := []byte(strconv.Itoa(12))
-	conn.Write(valbytes)
+func sendData(conn net.Conn, send_data [][]byte) {
+	all_zero_record := make([]byte, 100)
+	for i, _ := range all_zero_record {
+		all_zero_record[i] = byte(0)
+	}
+	for _, record := range send_data {
+		conn.Write(record)
+	}
+	conn.Write(all_zero_record)
+	time.Sleep(100 * time.Millisecond)
+	conn.Close()
 }
 
-func dialToServers(serverId int, scs ServerConfigs) {
+func dialToServers(serverId int, scs ServerConfigs, partition_map map[int][][]byte) {
 	time.Sleep(1 * time.Second)
 	for _, serv := range scs.Servers {
+		send_data := partition_map[serv.ServerId]
 		if serv.Host == ("server" + strconv.Itoa(serverId)) {
 			continue
 		} else {
 			for {
 				conn, err := net.Dial("tcp", serv.Host+":"+serv.Port)
 				if err == nil {
-					go sendData(conn)
+					go sendData(conn, send_data)
 					break
 				}
 				defer conn.Close()
 			}
 		}
 	}
+}
+
+func consolidateData(ch <-chan []byte, numOfClients int) [][]byte {
+	all_zero_record := make([]byte, 100)
+	records := [][]byte{}
+	for i, _ := range all_zero_record {
+		all_zero_record[i] = byte(0)
+	}
+	done_count := 0
+	for {
+		record := <-ch
+		// break if you receive flag records from all clients
+		if bytes.Equal(all_zero_record, record) {
+			done_count += 1
+		} else {
+			records = append(records, record)
+		}
+		if done_count == numOfClients {
+			break
+		}
+	}
+	return records
 }
 
 func main() {
@@ -107,13 +150,66 @@ func main() {
 	scs := readServerConfigs(os.Args[4])
 	fmt.Println("Got the following server configs:", scs)
 
+	// Read infile
+	var infile string = os.Args[2]
+	var outfile string = os.Args[3]
+	f, err := os.Open(infile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	records := [][]byte{}
+	for {
+		buf := make([]byte, 100)
+		n, err := f.Read(buf)
+		if err != nil {
+			if err != io.EOF {
+				log.Fatal(err)
+			}
+			break
+		}
+		records = append(records, buf[0:n])
+	}
+
+	n := int(math.Ceil(math.Log2(float64(len(scs.Servers)))))
+	partition_map := make(map[int][][]byte)
+	for _, serv := range scs.Servers {
+		for _, record := range records {
+			data := int(record[0] >> (8 - n))
+			if data == serv.ServerId {
+				partition_map[serv.ServerId] = append(partition_map[serv.ServerId], record)
+			}
+		}
+	}
+
 	ch := make(chan []byte)
 	// records := [][]byte{}
-	print("going to listen")
 	go listenforData(ch, serverId)
-	go dialToServers(serverId, scs)
+	go dialToServers(serverId, scs, partition_map)
 	/*
 		Implement Distributed Sort
 	*/
-	time.Sleep(100 * time.Second)
+	numOfClients := len(scs.Servers) - 1
+	received_records := consolidateData(ch, numOfClients)
+	received_records = append(received_records, partition_map[serverId]...)
+
+	sort.Slice(received_records, func(i, j int) bool { return bytes.Compare(received_records[i][:10], received_records[j][:10]) < 0 })
+
+	fmt.Println(received_records)
+
+	f, create_err := os.Create(outfile)
+	if create_err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	for _, received_records := range received_records {
+		_, write_err := f.Write(received_records)
+		if write_err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	f.Sync()
 }
