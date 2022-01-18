@@ -43,16 +43,12 @@ func handleConnection(conn net.Conn, ch chan<- []byte) {
 		bytes, err := conn.Read(buffer)
 		if err != nil {
 			if err == io.EOF {
-				fmt.Println("EOF")
 				conn.Close()
 				break
 			} else {
 				log.Panicln(err)
 			}
 		}
-		fmt.Print("Received from ")
-		fmt.Print(conn)
-		fmt.Println(strconv.Itoa(bytes) + " bytes")
 		ch <- buffer[0:bytes]
 	}
 }
@@ -180,7 +176,6 @@ func main() {
 		}
 		records = append(records, buf[0:n])
 	}
-	fmt.Println("Read input file")
 
 	n := int(math.Ceil(math.Log2(float64(len(scs.Servers)))))
 	partition_map := make(map[int][][]byte)
@@ -192,7 +187,6 @@ func main() {
 			}
 		}
 	}
-	fmt.Println("Created partition map")
 
 	ch := make(chan []byte)
 	// records := [][]byte{}
