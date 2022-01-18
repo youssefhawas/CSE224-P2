@@ -171,6 +171,7 @@ func main() {
 		}
 		records = append(records, buf[0:n])
 	}
+	fmt.Println("Read input file")
 
 	n := int(math.Ceil(math.Log2(float64(len(scs.Servers)))))
 	partition_map := make(map[int][][]byte)
@@ -182,6 +183,7 @@ func main() {
 			}
 		}
 	}
+	fmt.Println("Created partition map")
 
 	ch := make(chan []byte)
 	// records := [][]byte{}
