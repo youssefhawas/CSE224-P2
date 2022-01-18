@@ -103,6 +103,8 @@ func dialToServers(serverId int, scs ServerConfigs, partition_map map[int][][]by
 				if err == nil {
 					go sendData(conn, send_data)
 					break
+				} else {
+					fmt.Println("error in dialing")
 				}
 				defer conn.Close()
 			}
@@ -149,7 +151,6 @@ func main() {
 	// Read server configs from file
 	scs := readServerConfigs(os.Args[4])
 	fmt.Println("Got the following server configs:", scs)
-	fmt.Print("My Hostname: ")
 	var my_host string
 	for _, serv := range scs.Servers {
 		if serv.ServerId == serverId {
