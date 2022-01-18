@@ -57,8 +57,8 @@ func handleConnection(conn net.Conn, ch chan<- []byte) {
 	}
 }
 
-func listenforData(ch chan<- []byte, serverid int) {
-	listener, err := net.Listen("tcp", "server"+strconv.Itoa(serverid)+":8080")
+func listenforData(ch chan<- []byte, hostname string) {
+	listener, err := net.Listen("tcp", hostname+":8080")
 	if err != nil {
 		log.Panic(err)
 	}
@@ -95,7 +95,7 @@ func dialToServers(serverId int, scs ServerConfigs, partition_map map[int][][]by
 	time.Sleep(1 * time.Second)
 	for _, serv := range scs.Servers {
 		send_data := partition_map[serv.ServerId]
-		if serv.Host == ("server" + strconv.Itoa(serverId)) {
+		if serv.ServerId == serverId {
 			continue
 		} else {
 			for {
@@ -149,7 +149,13 @@ func main() {
 	// Read server configs from file
 	scs := readServerConfigs(os.Args[4])
 	fmt.Println("Got the following server configs:", scs)
-
+	fmt.Print("My Hostname: ")
+	var my_host string
+	for _, serv := range scs.Servers {
+		if serv.ServerId == serverId {
+			my_host = serv.Host
+		}
+	}
 	// Read infile
 	var infile string = os.Args[2]
 	var outfile string = os.Args[3]
@@ -187,7 +193,7 @@ func main() {
 
 	ch := make(chan []byte)
 	// records := [][]byte{}
-	go listenforData(ch, serverId)
+	go listenforData(ch, my_host)
 	go dialToServers(serverId, scs, partition_map)
 	/*
 		Implement Distributed Sort
