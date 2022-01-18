@@ -57,8 +57,8 @@ func handleConnection(conn net.Conn, ch chan<- []byte) {
 	}
 }
 
-func listenforData(ch chan<- []byte, hostname string) {
-	listener, err := net.Listen("tcp", hostname+":8080")
+func listenforData(ch chan<- []byte, hostname string, port string) {
+	listener, err := net.Listen("tcp", hostname+":"+port)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -152,9 +152,11 @@ func main() {
 	scs := readServerConfigs(os.Args[4])
 	fmt.Println("Got the following server configs:", scs)
 	var my_host string
+	var my_port string
 	for _, serv := range scs.Servers {
 		if serv.ServerId == serverId {
 			my_host = serv.Host
+			my_port = serv.Port
 		}
 	}
 	// Read infile
@@ -194,7 +196,7 @@ func main() {
 
 	ch := make(chan []byte)
 	// records := [][]byte{}
-	go listenforData(ch, my_host)
+	go listenforData(ch, my_host, my_port)
 	go dialToServers(serverId, scs, partition_map)
 	/*
 		Implement Distributed Sort
