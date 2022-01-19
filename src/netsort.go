@@ -38,18 +38,30 @@ func readServerConfigs(configPath string) ServerConfigs {
 }
 
 func handleConnection(conn net.Conn, ch chan<- []byte) {
+	record := []byte{}
 	for {
-		buffer := make([]byte, 100)
-		bytes, err := conn.Read(buffer)
-		if err != nil {
-			if err == io.EOF {
-				conn.Close()
+		for {
+			buffer := make([]byte, 100)
+			bytes, err := conn.Read(buffer)
+			if err != nil {
+				if err == io.EOF {
+					conn.Close()
+					return
+				} else {
+					log.Panicln(err)
+				}
+			}
+			fmt.Printf("Received %d bytes", bytes)
+			record = append(record, buffer[0:bytes]...)
+			if len(record) >= 100 {
 				break
-			} else {
-				log.Panicln(err)
 			}
 		}
-		ch <- buffer[0:bytes]
+		full_record := record[0:100]
+		fmt.Println(full_record)
+		record = record[100:]
+		fmt.Println(record)
+		ch <- full_record
 	}
 }
 
