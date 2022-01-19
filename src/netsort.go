@@ -51,16 +51,13 @@ func handleConnection(conn net.Conn, ch chan<- []byte) {
 					log.Panicln(err)
 				}
 			}
-			fmt.Printf("Received %d bytes", bytes)
 			record = append(record, buffer[0:bytes]...)
 			if len(record) >= 100 {
 				break
 			}
 		}
 		full_record := record[0:100]
-		fmt.Println(full_record)
 		record = record[100:]
-		fmt.Println(record)
 		ch <- full_record
 	}
 }
@@ -112,9 +109,8 @@ func dialToServers(serverId int, scs ServerConfigs, partition_map map[int][][]by
 					go sendData(conn, send_data)
 					break
 				} else {
-					fmt.Println("error in dialing")
+					continue
 				}
-				defer conn.Close()
 			}
 		}
 	}
@@ -212,8 +208,6 @@ func main() {
 	received_records = append(received_records, partition_map[serverId]...)
 
 	sort.Slice(received_records, func(i, j int) bool { return bytes.Compare(received_records[i][:10], received_records[j][:10]) < 0 })
-
-	fmt.Println(received_records)
 
 	f, create_err := os.Create(outfile)
 	if create_err != nil {
