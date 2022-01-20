@@ -215,11 +215,14 @@ func main() {
 	}
 	defer f.Close()
 
-	for _, received_records := range received_records {
-		_, write_err := f.Write(received_records)
-		if write_err != nil {
-			log.Fatal(err)
-		}
+	flattened_records := []byte{}
+	for _, received_record := range received_records {
+		flattened_records = append(flattened_records, received_record...)
+	}
+
+	_, write_err := f.Write(flattened_records)
+	if write_err != nil {
+		log.Fatal(err)
 	}
 
 	f.Sync()
